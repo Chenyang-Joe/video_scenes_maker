@@ -4,12 +4,66 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const BG_IMAGE_URL = '/data/images/museum.webp';
 const MESH_BASE = '/data/all_animo_val/process1_textured_post2/mesh/';
+const BLOB_BASE = '/data/all_animo_val/process1_textured_post1/blob/';
 const ROWS = 6;
 const COLS = 15;          // 6 × 15 = 90 — matches manifest size
 const ANIMAL_SCALE = 0.4;  // uniform multiplier applied to every model (post1 already volume-normalizes)
 const ANIMAL_LIFT = 0.002; // tiny upward offset (avoids z-fighting; gap not visible)
 const PAD = 0.4;          // pedestal edge padding (m) — keeps animals off the rim
 const LOAD_CONCURRENCY = 8;
+
+// === Scene timeline (seconds, modulo CYCLE_DURATION) ===
+const CYCLE_DURATION = 40.0; // whole-scene loop length
+const PHASE = {
+  freezeUntil: 5.0,     // animals frozen at frame 0 until then
+  flashStart: 5.0,      // one-shot particle burst at this moment
+  blobStart: 25.0,      // textured → blob swap
+  blobEnd: 35.0,        // blob → textured swap (then 5 s back to animation, then loop)
+};
+
+// One-shot particle burst that flashes past the camera at PHASE.flashStart.
+// All particles spawn at a single point in front of the camera and radiate
+// outward, so most of them are guaranteed to cross the (narrow) FOV cone.
+const PARTICLE_COUNT = 500;
+const PARTICLE_COLOR = 0x39ff14;       // neon / fluorescent green
+const PARTICLE_SIZE = 0.35;            // world units (sizeAttenuation = true)
+const PARTICLE_ORIGIN = new THREE.Vector3(0, 4.0, 5.0); // on the camera→target ray
+const PARTICLE_LIFE_MIN = 1.8;         // seconds
+const PARTICLE_LIFE_MAX = 3.4;
+const PARTICLE_SPEED_MIN = 2.0;        // m/s
+const PARTICLE_SPEED_MAX = 6.0;
+
+// Ambient light intensities for the static vs. animated halves of the cycle.
+// Smoothly transitions over AMBIENT_TRANSITION seconds at PHASE.freezeUntil.
+const AMBIENT_DIM = 0.55;
+const AMBIENT_BRIGHT = 0.55;
+const AMBIENT_TRANSITION = 1.0;
+
+// Overhead spotlight (the "circular top light"). Off during the static phase,
+// fades in after PHASE.freezeUntil so the pedestal lights up dramatically once
+// the magic flash has triggered the animals.
+const SPOT_INTENSITY_ON = 9.0;
+const SPOT_COLOR = 0xfff1d8;       // warm museum-spotlight white
+const SPOT_HEIGHT = 8.0;            // y position of the lamp source
+const SPOT_ANGLE = 0.20;           // cone half-angle (~11.5°) — disk a bit bigger than the view, boundary lands inside frame edges
+const SPOT_PENUMBRA = 0.4;         // soft edge; inner ~60% is full-bright, outer 40% fades to 0
+const SPOT_DISTANCE = 16.0;
+const SPOT_TRANSITION = 1.2;
+
+// Blob styling: keep each GLB's own per-mesh colors, punch up saturation, and
+// self-illuminate so the cloud reads clearly against the dark museum back.
+const BLOB_SAT_GAIN = 1.7;       // multiplies HSL saturation
+const BLOB_SAT_FLOOR = 0.25;     // also lifts low-saturation hues
+const BLOB_LIGHTNESS_MIN = 0.45; // prevents very dark colors from disappearing
+const BLOB_EMISSIVE_INTENSITY = 0.3; // glow each blob with its own (saturation-boosted) color
+
+// Seed for the manifest shuffle (deterministic across reloads, but not alphabetical).
+const SHUFFLE_SEED = 0x9E3779B1;
+
+// Hand-picked post-shuffle swaps — [indexA, indexB] pairs, applied in order.
+const MANUAL_SWAPS = [
+  [17, 81], // animal at r2c3 ↔ king penguin (r6c7)
+];
 
 // Per-species scale multipliers (substring match on lowercase filename).
 // 1.0 = no override; entries multiply on top of ANIMAL_SCALE.
@@ -22,6 +76,30 @@ function getScaleOverride(filename) {
   }
   return 1.0;
 }
+
+// Fisher–Yates shuffle with a seeded LCG so the placement is deterministic
+// across reloads but isn't alphabetical.
+function seededShuffle(arr, seed) {
+  const out = arr.slice();
+  let s = seed >>> 0;
+  const rng = () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Per-file Y-rotation tweaks (degrees, CCW from above). Applied AFTER ROTATE_180.
+const ROTATE_Y_EXTRA_DEG = {
+  'Sand_Cat_Female__sand_cat_male__anima_4c1488c9539c.glb': 100, // row3/col15 sand cat
+};
 
 // GLBs in this set are loaded facing away from the camera; rotate them 180° around Y.
 // (Indexed by full manifest filename — keyed off positions in the current 6×15 layout.)
@@ -73,7 +151,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.VSMShadowMap; // separable Gaussian blur → much softer shadow edges than PCF
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -127,29 +205,61 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// ---- Lighting (no IBL — fully explicit) ----
-const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+// ---- Lighting: just ambient + a single overhead spotlight ----
+const ambient = new THREE.AmbientLight(0xffffff, AMBIENT_DIM);
 scene.add(ambient);
 
-const keyLight = new THREE.DirectionalLight(0xfff1d8, 1.6); // warm key
-keyLight.position.set(2.5, 4.5, 2.0);
-keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(2048, 2048);
-keyLight.shadow.camera.near = 0.5;
-keyLight.shadow.camera.far = 15;
-keyLight.shadow.camera.left = -10;
-keyLight.shadow.camera.right = 10;
-keyLight.shadow.camera.top = 8;
-keyLight.shadow.camera.bottom = -8;
-keyLight.shadow.bias = -0.0005;
-keyLight.shadow.normalBias = 0.02;
-scene.add(keyLight);
+// Spotlight points straight down at the world origin. The illuminated circle
+// stays fixed at the center of the camera view, and the pedestal pans through
+// it as the tour runs — so whatever animal is "on stage" right now is the one
+// that's lit.
+// Position shifted slightly back in z so the lit circle sits a touch higher
+// on screen (camera looks down/forward, so "up on screen" = -z).
+const SPOT_Z_OFFSET = -0.2;
+const topSpot = new THREE.SpotLight(SPOT_COLOR, 0, SPOT_DISTANCE, SPOT_ANGLE, SPOT_PENUMBRA, 1.0);
+topSpot.position.set(0, SPOT_HEIGHT, SPOT_Z_OFFSET);
+topSpot.target.position.set(0, 0, SPOT_Z_OFFSET);
+topSpot.castShadow = true;
+// 4096² + a tight near/far frustum gives much more depth precision over the
+// shallow pedestal+animal volume → kills the speckled "light spots inside
+// shadow" PCF artifacts caused by depth-comparison aliasing.
+topSpot.shadow.mapSize.set(4096, 4096);
+topSpot.shadow.camera.near = 5.0;
+topSpot.shadow.camera.far = 8.5;
+topSpot.shadow.bias = -0.0006;
+topSpot.shadow.normalBias = 0.02;
+topSpot.shadow.radius = 10;      // VSM: Gaussian blur radius (in shadow-map texels)
+topSpot.shadow.blurSamples = 24;  // VSM: Gaussian sample count — higher = smoother
+scene.add(topSpot);
+scene.add(topSpot.target);
 
-const fillLight = new THREE.DirectionalLight(0x99b4cc, 0.55); // cool fill
+// Static phase: fill + rim lights are strong and the fill light is the primary
+// shadow source. Animated phase: both fade down so the top spotlight takes over
+// (and fillLight stops casting shadow, so only the spot's shadow remains).
+const FILL_STATIC = 0.6;
+const FILL_ANIM = 0.3;
+const RIM_STATIC = 0.45;
+const RIM_ANIM = 0.3;
+
+// All three lights share the same warm tint as the spotlight, so the overall
+// color temperature stays consistent across the flash transition.
+const fillLight = new THREE.DirectionalLight(SPOT_COLOR, FILL_STATIC);
 fillLight.position.set(-3.5, 3.0, -1.5);
+fillLight.castShadow = true;
+fillLight.shadow.mapSize.set(2048, 2048);
+fillLight.shadow.camera.near = 0.5;
+fillLight.shadow.camera.far = 15;
+fillLight.shadow.camera.left = -10;
+fillLight.shadow.camera.right = 10;
+fillLight.shadow.camera.top = 8;
+fillLight.shadow.camera.bottom = -8;
+fillLight.shadow.bias = -0.0005;
+fillLight.shadow.normalBias = 0.03;
+fillLight.shadow.radius = 5;
+fillLight.shadow.blurSamples = 16;
 scene.add(fillLight);
 
-const rimLight = new THREE.DirectionalLight(0xffffff, 0.3); // subtle backlight
+const rimLight = new THREE.DirectionalLight(SPOT_COLOR, RIM_STATIC);
 rimLight.position.set(0, 2.5, -4);
 scene.add(rimLight);
 
@@ -204,10 +314,89 @@ window.addEventListener('resize', () => {
 // segment takes time proportional to its distance, so the velocity stays
 // uniform around the rectangle (no slowdown at corners).
 const clock = new THREE.Clock();
+const sceneClock = new THREE.Clock();
+sceneClock.autoStart = false; // started at the end of loadAnimals()
 const animationMixers = []; // one mixer per GLB that ships with animation clips
+const animals = [];         // { wrapper, texturedModel, mixer, blobModel?, blobMixer? } per grid cell
+
+// === Particle flash (camera-front burst at PHASE.flashStart) ===
+const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
+const particleVelocities = new Float32Array(PARTICLE_COUNT * 3);
+const particleAges = new Float32Array(PARTICLE_COUNT);
+const particleLives = new Float32Array(PARTICLE_COUNT);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particlePositions[i * 3 + 1] = -1000; // start dead (parked under the floor)
+  particleAges[i] = Infinity;
+}
+const particleGeom = new THREE.BufferGeometry();
+particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+const particleMat = new THREE.PointsMaterial({
+  color: PARTICLE_COLOR,
+  size: PARTICLE_SIZE,
+  transparent: true,
+  opacity: 1.0,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true,
+});
+const particles = new THREE.Points(particleGeom, particleMat);
+// Disable frustum culling — the boundingSphere is computed from the initial
+// positions (all parked far below the floor), so three.js would otherwise cull
+// the Points object permanently and the burst would never render.
+particles.frustumCulled = false;
+scene.add(particles);
+
+function spawnParticleBurst() {
+  // Burst from a single point in front of the camera; each particle gets a
+  // random unit direction × speed. Sphere-of-burst guarantees plenty of paths
+  // through the narrow visible cone, so the flash always reads on screen.
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particlePositions[i * 3 + 0] = PARTICLE_ORIGIN.x;
+    particlePositions[i * 3 + 1] = PARTICLE_ORIGIN.y;
+    particlePositions[i * 3 + 2] = PARTICLE_ORIGIN.z;
+
+    // Uniform direction on the unit sphere
+    const u = Math.random() * 2 - 1;            // cos(phi)
+    const theta = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(1 - u * u);
+    const dx = r * Math.cos(theta);
+    const dy = u;
+    const dz = r * Math.sin(theta);
+
+    const speed = PARTICLE_SPEED_MIN + Math.random() * (PARTICLE_SPEED_MAX - PARTICLE_SPEED_MIN);
+    particleVelocities[i * 3 + 0] = dx * speed;
+    particleVelocities[i * 3 + 1] = dy * speed;
+    particleVelocities[i * 3 + 2] = dz * speed;
+    particleAges[i] = 0;
+    particleLives[i] = PARTICLE_LIFE_MIN + Math.random() * (PARTICLE_LIFE_MAX - PARTICLE_LIFE_MIN);
+  }
+  particleGeom.attributes.position.needsUpdate = true;
+}
+
+function updateParticles(dt) {
+  let anyAlive = false;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    if (particleAges[i] >= particleLives[i]) {
+      if (particlePositions[i * 3 + 1] !== -1000) {
+        particlePositions[i * 3 + 1] = -1000;
+        anyAlive = true;
+      }
+      continue;
+    }
+    particleAges[i] += dt;
+    particlePositions[i * 3 + 0] += particleVelocities[i * 3 + 0] * dt;
+    particlePositions[i * 3 + 1] += particleVelocities[i * 3 + 1] * dt;
+    particlePositions[i * 3 + 2] += particleVelocities[i * 3 + 2] * dt;
+    anyAlive = true;
+  }
+  if (anyAlive) particleGeom.attributes.position.needsUpdate = true;
+}
+
+let _flashSpawnedThisCycle = false;
+
 const tour = {
   enabled: false,
-  period: 30.0,     // seconds for one full A→B→C→D→A loop
+  period: 40.0,     // seconds for one full A→B→C→D→A loop (synced with CYCLE_DURATION)
   t0: 0,            // clock time when the tour started
   xAmp: 3.4,        // ±3.4 in x: turn-around a bit past the outermost cols
   zAmp: 1.075,     // ±1.075 in z: centers rows 0–2 ↔ rows 3–5
@@ -244,9 +433,71 @@ function tourPos(t) {
 }
 
 // ---- Render loop ----
+let _prevSceneT = 0;
 function tick() {
   const dt = clock.getDelta();
-  for (const mixer of animationMixers) mixer.update(dt);
+  const sceneT_raw = sceneClock.running ? sceneClock.getElapsedTime() : 0;
+  const sceneT = sceneT_raw % CYCLE_DURATION;
+
+  // Cycle wrap → reset every animation to t=0 so animals freeze again at frame 0,
+  // and re-arm the one-shot particle flash for the next loop.
+  if (sceneT < _prevSceneT) {
+    for (const a of animals) {
+      if (!a) continue;
+      if (a.action) { a.action.time = 0; a.mixer.update(0); }
+      if (a.blobAction) { a.blobAction.time = 0; a.blobMixer.update(0); }
+    }
+    _flashSpawnedThisCycle = false;
+  }
+  _prevSceneT = sceneT;
+
+  // Lighting state crossfade at PHASE.freezeUntil:
+  //   - ambient: constant (DIM == BRIGHT now)
+  //   - topSpot: 0 → SPOT_INTENSITY_ON over SPOT_TRANSITION
+  //   - fill/rim: bright with fill-shadow during static → dim with no shadow during animated
+  if (sceneT < PHASE.freezeUntil) {
+    ambient.intensity = AMBIENT_DIM;
+    topSpot.intensity = 0;
+    fillLight.intensity = FILL_STATIC;
+    fillLight.castShadow = true;
+    rimLight.intensity = RIM_STATIC;
+  } else {
+    const ua = Math.min(1, (sceneT - PHASE.freezeUntil) / AMBIENT_TRANSITION);
+    const ea = ua * ua * (3 - 2 * ua);
+    ambient.intensity = AMBIENT_DIM + (AMBIENT_BRIGHT - AMBIENT_DIM) * ea;
+    fillLight.intensity = FILL_STATIC + (FILL_ANIM - FILL_STATIC) * ea;
+    rimLight.intensity = RIM_STATIC + (RIM_ANIM - RIM_STATIC) * ea;
+    // Once we're past the fade, fillLight no longer needs to cast shadow —
+    // the spot has fully taken over.
+    fillLight.castShadow = ua < 1;
+
+    const us = Math.min(1, (sceneT - PHASE.freezeUntil) / SPOT_TRANSITION);
+    const es = us * us * (3 - 2 * us);
+    topSpot.intensity = SPOT_INTENSITY_ON * es;
+  }
+
+  // Animal animations: frozen until t=freezeUntil, then play through the cycle
+  if (sceneT >= PHASE.freezeUntil) {
+    for (const mixer of animationMixers) mixer.update(dt);
+  }
+
+  // Textured ↔ blob swap (and tick the blob mixer only while it's visible)
+  const blobActive = sceneT >= PHASE.blobStart && sceneT < PHASE.blobEnd;
+  for (const a of animals) {
+    if (!a) continue;
+    const showBlob = blobActive && a.blobModel;
+    a.texturedModel.visible = !showBlob;
+    if (a.blobModel) a.blobModel.visible = showBlob;
+    if (showBlob && a.blobMixer) a.blobMixer.update(dt);
+  }
+
+  // One-shot particle flash at PHASE.flashStart
+  if (!_flashSpawnedThisCycle && sceneT >= PHASE.flashStart) {
+    spawnParticleBurst();
+    _flashSpawnedThisCycle = true;
+  }
+  updateParticles(dt);
+
   if (tour.enabled) {
     const t = (clock.getElapsedTime() - tour.t0) / tour.period;
     const [px, pz] = tourPos(t);
@@ -275,6 +526,10 @@ function placeAnimal(gltf, i, cellW, cellD, filename) {
   // flip back-facing animals 180° around Y before bbox / centering math runs
   if (ROTATE_180.has(filename)) {
     model.rotation.y = Math.PI;
+  }
+  const extraDeg = ROTATE_Y_EXTRA_DEG[filename];
+  if (extraDeg !== undefined) {
+    model.rotation.y += extraDeg * Math.PI / 180;
   }
 
   // Build the mixer and drive the model to frame-0 first; we'll also use it to
@@ -344,6 +599,16 @@ function placeAnimal(gltf, i, cellW, cellD, filename) {
   animalsRoot.add(wrapper);
 
   if (mixer) animationMixers.push(mixer);
+
+  animals[i] = {
+    wrapper,
+    texturedModel: model,
+    mixer,
+    action,             // kept so we can reset to t=0 each scene loop
+    blobModel: null,
+    blobMixer: null,
+    blobAction: null,
+  };
 }
 
 async function loadAnimals() {
@@ -357,7 +622,12 @@ async function loadAnimals() {
     return;
   }
 
-  const selected = manifest.slice(0, ROWS * COLS);
+  const selected = seededShuffle(manifest, SHUFFLE_SEED).slice(0, ROWS * COLS);
+  for (const [a, b] of MANUAL_SWAPS) {
+    if (a < selected.length && b < selected.length) {
+      [selected[a], selected[b]] = [selected[b], selected[a]];
+    }
+  }
   const cellW = (PEDESTAL.w - 2 * PAD) / COLS;
   const cellD = (PEDESTAL.d - 2 * PAD) / ROWS;
   const total = selected.length;
@@ -386,8 +656,77 @@ async function loadAnimals() {
   loadingEl.classList.add('hidden');
   tour.t0 = clock.getElapsedTime();
   tour.enabled = true;
+  sceneClock.start(); // begin phase timeline (animals frozen until PHASE.freezeUntil)
+  loadBlobs(selected); // background-load the blob versions for the t=15s swap
+}
+
+// ---- Blob version loading (background, after textured animals are visible) ----
+async function loadBlobs(filenames) {
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= filenames.length) return;
+      const filename = filenames[i];
+      const a = animals[i];
+      if (!a) continue;
+      try {
+        const gltf = await gltfLoader.loadAsync(BLOB_BASE + filename);
+        const blobModel = gltf.scene;
+
+        // Mirror the textured model's full transform so any per-file rotation
+        // overrides (ROTATE_180 + ROTATE_Y_EXTRA_DEG) carry over.
+        blobModel.rotation.copy(a.texturedModel.rotation);
+        blobModel.position.copy(a.texturedModel.position);
+        blobModel.scale.copy(a.texturedModel.scale);
+
+        blobModel.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+            if (obj.material) {
+              // Clone so we don't mutate a shared material cache.
+              obj.material = obj.material.clone();
+              // Keep the GLB's own per-mesh hue, but punch up saturation so the
+              // palette reads cleanly instead of looking muddy.
+              const hsl = { h: 0, s: 0, l: 0 };
+              obj.material.color.getHSL(hsl);
+              obj.material.color.setHSL(
+                hsl.h,
+                Math.min(1, Math.max(BLOB_SAT_FLOOR, hsl.s * BLOB_SAT_GAIN)),
+                Math.max(BLOB_LIGHTNESS_MIN, hsl.l),
+              );
+              // Self-illuminate using the (already brightened) base color so the
+              // blob doesn't rely on the museum's dim key light to be visible.
+              if (obj.material.emissive) {
+                obj.material.emissive.copy(obj.material.color);
+                obj.material.emissiveIntensity = BLOB_EMISSIVE_INTENSITY;
+              }
+              obj.material.needsUpdate = true;
+            }
+          }
+        });
+
+        blobModel.visible = false;
+        a.wrapper.add(blobModel);
+        a.blobModel = blobModel;
+
+        if (gltf.animations && gltf.animations.length > 0) {
+          const bMixer = new THREE.AnimationMixer(blobModel);
+          const bAction = bMixer.clipAction(gltf.animations[0]);
+          bAction.play();
+          bMixer.update(0);
+          a.blobMixer = bMixer;
+          a.blobAction = bAction;
+        }
+      } catch (err) {
+        console.warn('Blob load failed:', filename, err);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, worker));
 }
 
 loadAnimals();
 
-window.__scene = { scene, camera, controls, renderer, pedestal, displayAnchor, keyLight, fillLight, rimLight, ambient, animalsRoot, displayGroup, tour };
+window.__scene = { scene, camera, controls, renderer, pedestal, displayAnchor, ambient, topSpot, fillLight, rimLight, animalsRoot, displayGroup, tour, sceneClock, PHASE, animals, CYCLE_DURATION, particles };
