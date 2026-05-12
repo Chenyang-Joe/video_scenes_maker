@@ -1,0 +1,3 @@
+[submodule "ref/CANOR_GAUSS"]
+	path = ref/CANOR_GAUSS
+	url = https://github.com/Chenyang-Joe/CANOR_GAUSS.git

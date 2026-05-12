@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>scene_1 — Edit blob (left leg)</title>
+    <style>
+      html, body { margin: 0; padding: 0; overflow: hidden; background: #ffffff; }
+      canvas { display: block; }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #444;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        letter-spacing: 0.1em;
+        background: #f4f4f4;
+        z-index: 10;
+        transition: opacity 0.4s ease;
+      }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+
+      #ui {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 520px;
+        padding: 22px 28px;
+        background: rgba(20, 20, 20, 0.24);
+        backdrop-filter: blur(10px);
+        color: #f4f4f4;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        border-radius: 16px;
+        z-index: 5;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+      }
+      #ui label {
+        display: block;
+        margin-bottom: 18px;
+        font-size: 30px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-align: center;
+      }
+      /* Custom-styled range so the track is uniform (no "fill from left"
+         look that the default browser style applies). Negative values sit on
+         the left half, positive on the right, both relative to the centered
+         origin. */
+      #leg-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 6px;
+        background: #7a7a7a;
+        border-radius: 3px;
+        outline: none;
+      }
+      #leg-slider::-webkit-slider-runnable-track {
+        height: 6px;
+        background: #7a7a7a;
+        border-radius: 3px;
+      }
+      #leg-slider::-moz-range-track {
+        height: 6px;
+        background: #7a7a7a;
+        border-radius: 3px;
+      }
+      /* Firefox draws a "progress" portion on the left of the thumb — kill it. */
+      #leg-slider::-moz-range-progress {
+        height: 6px;
+        background: #7a7a7a;
+        border-radius: 3px;
+      }
+      #leg-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #3b82f6;
+        border: 2px solid #fff;
+        margin-top: -7px;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.45);
+      }
+      #leg-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #3b82f6;
+        border: 2px solid #fff;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.45);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading">LOADING…</div>
+    <div id="ui">
+      <label for="leg-slider">shift left front feet</label>
+      <input id="leg-slider" type="range" min="-100" max="100" value="0" step="1" />
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>scene_2 — Swimming animals (blob → mesh)</title>
+    <style>
+      html, body { margin: 0; padding: 0; overflow: hidden; background: #ffffff; }
+      canvas { display: block; }
+
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #444;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        letter-spacing: 0.1em;
+        background: #f4f4f4;
+        z-index: 10;
+        transition: opacity 0.4s ease;
+      }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="loading">LOADING…</div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

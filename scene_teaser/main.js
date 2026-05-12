@@ -2,6 +2,19 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+// === Record mode (URL param `?record=1`) — renders intro + 1 cycle to MP4 ===
+// Optional `?res=4k|1440p|1080p|720p` (default 4k) and `?fps=30|60` (default 60).
+const _qp = new URLSearchParams(location.search);
+const RECORD_MODE = _qp.has('record');
+const _RES_PRESETS = {
+  '4k': [3840, 2160],
+  '1440p': [2560, 1440],
+  '1080p': [1920, 1080],
+  '720p': [1280, 720],
+};
+const [RECORD_WIDTH, RECORD_HEIGHT] = _RES_PRESETS[_qp.get('res') || '4k'] || _RES_PRESETS['4k'];
+const RECORD_FPS = parseInt(_qp.get('fps') || '60', 10);
+
 const BG_IMAGE_URL = '/data/images/museum.webp';
 const MESH_BASE = '/data/all_animo_val/process1_textured_post2/mesh/';
 const BLOB_BASE = '/data/all_animo_val/process1_textured_post1/blob/';
@@ -12,13 +25,38 @@ const ANIMAL_LIFT = 0.002; // tiny upward offset (avoids z-fighting; gap not vis
 const PAD = 0.4;          // pedestal edge padding (m) — keeps animals off the rim
 const LOAD_CONCURRENCY = 8;
 
-// === Scene timeline (seconds, modulo CYCLE_DURATION) ===
-const CYCLE_DURATION = 40.0; // whole-scene loop length
+// === Intro animation (one-shot, plays once before the main cycle) ===
+const INTRO_DURATION = 9.0;
+const INTRO_T1 = 2.0;            // [0..T1]   hold on the background (pedestal parked below frame)
+const INTRO_T2 = 5.0;            // [T1..T2]  rise + tilt down → table grows into full-screen view (3 s)
+const INTRO_T3 = 7.0;            // [T2..T3]  hold on the full-pedestal "display" shot (2 s)
+                                  // [T3..DUR] zoom in to "first 3 rows" framing (2 s)
+
+const CAM_HORIZON = {
+  // Horizontal look from chest height — pedestal top peeks in at the very
+  // bottom of the frame (~85% from top), most of pedestal off-screen below.
+  pos: new THREE.Vector3(0, 2.0, 6),
+  target: new THREE.Vector3(0, 2.0, -10),
+  fov: 32,
+};
+const CAM_FULL = {
+  pos: new THREE.Vector3(0, 8.5, 4.8),       // ~60° bird's-eye tilt — pedestal fills ~105% width
+  target: new THREE.Vector3(0, 0.5, 0),
+  fov: 32,
+};
+const CAM_ROWS = {
+  pos: new THREE.Vector3(0, 8, 11.5),
+  target: new THREE.Vector3(0, 0.9, 0),
+  fov: 5.5,
+};
+
+// === Scene timeline (seconds since intro ended, modulo CYCLE_DURATION) ===
+const CYCLE_DURATION = 30.0; // whole-scene loop length
 const PHASE = {
-  freezeUntil: 5.0,     // animals frozen at frame 0 until then
-  flashStart: 5.0,      // one-shot particle burst at this moment
-  blobStart: 25.0,      // textured → blob swap
-  blobEnd: 35.0,        // blob → textured swap (then 5 s back to animation, then loop)
+  freezeUntil: 2.0,     // animals frozen at frame 0 until then
+  flashStart: 2.0,      // one-shot particle burst at this moment
+  blobStart: 15.0,      // textured → blob swap
+  blobEnd: 25.0,        // blob → textured swap (then 5 s back to animation, then loop)
 };
 
 // One-shot particle burst that flashes past the camera at PHASE.flashStart.
@@ -63,6 +101,7 @@ const SHUFFLE_SEED = 0x9E3779B1;
 // Hand-picked post-shuffle swaps — [indexA, indexB] pairs, applied in order.
 const MANUAL_SWAPS = [
   [17, 81], // animal at r2c3 ↔ king penguin (r6c7)
+  [26, 60], // ocelot (r2c12) ↔ bengal tiger (r5c1)
 ];
 
 // Per-species scale multipliers (substring match on lowercase filename).
@@ -144,9 +183,24 @@ const ROTATE_180 = new Set([
   'Wolverine_Female__wolverine_male__ani_89da20e38a0d.glb',
 ]);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  preserveDrawingBuffer: RECORD_MODE, // required so canvas-record can read pixels each frame
+  powerPreference: RECORD_MODE ? 'high-performance' : 'default',
+});
+renderer.setPixelRatio(RECORD_MODE ? 1 : Math.min(window.devicePixelRatio, 2));
+renderer.setSize(
+  RECORD_MODE ? RECORD_WIDTH : window.innerWidth,
+  RECORD_MODE ? RECORD_HEIGHT : window.innerHeight,
+);
+// Surface context-lost events so we can diagnose without it being silent.
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  console.error('[gl] context LOST', e);
+  e.preventDefault();
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  console.warn('[gl] context restored');
+});
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -157,16 +211,16 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  5.0, // tight telephoto — frames ~3 rows × ~5-6 cols
-  window.innerWidth / window.innerHeight,
+  CAM_HORIZON.fov,
+  RECORD_MODE ? RECORD_WIDTH / RECORD_HEIGHT : window.innerWidth / window.innerHeight,
   0.05,
   200,
 );
-// pulled back & raised → flattens depth, more top-down look
-camera.position.set(0, 8.0, 11.5);
+// Start at the intro's first shot — eye-level over the pedestal, looking out.
+camera.position.copy(CAM_HORIZON.pos);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.9, 0);
+controls.target.copy(CAM_HORIZON.target);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 3;
@@ -223,7 +277,7 @@ topSpot.castShadow = true;
 // 4096² + a tight near/far frustum gives much more depth precision over the
 // shallow pedestal+animal volume → kills the speckled "light spots inside
 // shadow" PCF artifacts caused by depth-comparison aliasing.
-topSpot.shadow.mapSize.set(4096, 4096);
+topSpot.shadow.mapSize.set(4096, 4096); // same in record + preview (8192² VSM = 512 MB, too much on top of 4K + 180 GLBs)
 topSpot.shadow.camera.near = 5.0;
 topSpot.shadow.camera.far = 8.5;
 topSpot.shadow.bias = -0.0006;
@@ -281,7 +335,11 @@ scene.background = bgTexture;
 // Maintain "cover" behavior: fill the viewport, crop excess, no stretching.
 function updateBackgroundAspect() {
   if (!bgTexture.image) return;
-  const screenAspect = window.innerWidth / window.innerHeight;
+  // Use the render-target aspect (canvas backbuffer), not window aspect — they
+  // differ in record mode (canvas is 4K 16:9 regardless of window size).
+  const screenAspect = RECORD_MODE
+    ? RECORD_WIDTH / RECORD_HEIGHT
+    : window.innerWidth / window.innerHeight;
   const imgAspect = bgTexture.image.width / bgTexture.image.height;
   if (screenAspect > imgAspect) {
     // screen is wider — fit width, crop vertically
@@ -296,6 +354,11 @@ function updateBackgroundAspect() {
 
 // ---- Resize ----
 window.addEventListener('resize', () => {
+  // In record mode the canvas MUST stay at RECORD_WIDTH × RECORD_HEIGHT (4K).
+  // Otherwise opening DevTools / changing window size mid-record collapses
+  // the WebGL backbuffer to the new viewport, and the encoder ends up writing
+  // an upscaled, wrong-aspect frame into the 4K container.
+  if (RECORD_MODE) return;
   const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
@@ -318,6 +381,17 @@ const sceneClock = new THREE.Clock();
 sceneClock.autoStart = false; // started at the end of loadAnimals()
 const animationMixers = []; // one mixer per GLB that ships with animation clips
 const animals = [];         // { wrapper, texturedModel, mixer, blobModel?, blobMixer? } per grid cell
+
+// Halve playback speed for both mesh and blob clips, and force LINEAR interpolation
+// on every track. The source GLBs ship most channels as STEP (no in-between values
+// → choppy at slow speeds); LINEAR gives smooth tweening for translation/scale and
+// SLERP for the quaternion rotation tracks.
+const ANIM_TIME_SCALE = 0.5;
+function setLinearInterp(clip) {
+  for (const track of clip.tracks) {
+    track.setInterpolation(THREE.InterpolateLinear);
+  }
+}
 
 // === Particle flash (camera-front burst at PHASE.flashStart) ===
 const particlePositions = new Float32Array(PARTICLE_COUNT * 3);
@@ -396,10 +470,9 @@ let _flashSpawnedThisCycle = false;
 
 const tour = {
   enabled: false,
-  period: 40.0,     // seconds for one full A→B→C→D→A loop (synced with CYCLE_DURATION)
-  t0: 0,            // clock time when the tour started
+  period: 30.0,     // seconds for one full A→B→C→D→A loop (synced with CYCLE_DURATION)
   xAmp: 3.4,        // ±3.4 in x: turn-around a bit past the outermost cols
-  zAmp: 1.075,     // ±1.075 in z: centers rows 0–2 ↔ rows 3–5
+  zAmp: 1.075,      // ±1.075 in z: centers rows 0–2 ↔ rows 3–5
 };
 
 // Signed corner offsets — multiplied by xAmp/zAmp at runtime so they stay live-tunable.
@@ -432,12 +505,82 @@ function tourPos(t) {
   return [tour.xAmp, tour.zAmp]; // unreachable (f < 1)
 }
 
+// ---- Intro camera helpers ----
+function smoothstep01(u) { return u * u * (3 - 2 * u); }
+function applyCameraPreset(p) {
+  camera.position.copy(p.pos);
+  controls.target.copy(p.target);
+  camera.fov = p.fov;
+  camera.updateProjectionMatrix();
+  // Without this, the camera matrix only rotates when OrbitControls.update()
+  // runs — and we skip controls.update() in record mode. Forces orientation
+  // to match controls.target regardless.
+  camera.lookAt(controls.target);
+}
+function lerpCameraPresets(a, b, u) {
+  camera.position.lerpVectors(a.pos, b.pos, u);
+  controls.target.lerpVectors(a.target, b.target, u);
+  camera.fov = a.fov + (b.fov - a.fov) * u;
+  camera.updateProjectionMatrix();
+  camera.lookAt(controls.target);
+}
+
+function updateIntro(t) {
+  if (t < INTRO_T1) {
+    // Phase 1: static at CAM_HORIZON — background only, pedestal parked below frame
+    applyCameraPreset(CAM_HORIZON);
+    displayGroup.position.set(0, 0, 0);
+  } else if (t < INTRO_T2) {
+    // Phase 2: lerp CAM_HORIZON → CAM_FULL — pedestal rises and grows to fill the frame
+    const u = (t - INTRO_T1) / (INTRO_T2 - INTRO_T1);
+    lerpCameraPresets(CAM_HORIZON, CAM_FULL, smoothstep01(u));
+    displayGroup.position.set(0, 0, 0);
+  } else if (t < INTRO_T3) {
+    // Phase 3: hold on the full-pedestal "display" shot
+    applyCameraPreset(CAM_FULL);
+    displayGroup.position.set(0, 0, 0);
+  } else {
+    // Phase 4: zoom in to "first 3 rows" + slide displayGroup to corner A
+    const u = (t - INTRO_T3) / (INTRO_DURATION - INTRO_T3);
+    const eu = smoothstep01(u);
+    lerpCameraPresets(CAM_FULL, CAM_ROWS, eu);
+    displayGroup.position.set(tour.xAmp * eu, 0, tour.zAmp * eu);
+  }
+}
+
 // ---- Render loop ----
 let _prevSceneT = 0;
+// In record mode tick() reads from these instead of the real clocks, and
+// doesn't schedule the next rAF — the record loop drives it synchronously.
+let _virtualMode = false;
+let _virtualDt = 0;
+let _virtualSceneT = 0;
 function tick() {
-  const dt = clock.getDelta();
-  const sceneT_raw = sceneClock.running ? sceneClock.getElapsedTime() : 0;
-  const sceneT = sceneT_raw % CYCLE_DURATION;
+  const dt = _virtualMode ? _virtualDt : clock.getDelta();
+  const sceneT_raw = _virtualMode
+    ? _virtualSceneT
+    : (sceneClock.running ? sceneClock.getElapsedTime() : 0);
+
+  if (sceneT_raw < INTRO_DURATION) {
+    // Intro: just the camera animation + title. Keep everything else parked.
+    // updateIntro() handles camera AND displayGroup position.
+    updateIntro(sceneT_raw);
+    ambient.intensity = AMBIENT_DIM;
+    topSpot.intensity = 0;
+    fillLight.intensity = FILL_STATIC;
+    fillLight.castShadow = true;
+    rimLight.intensity = RIM_STATIC;
+    updateParticles(dt);  // harmless, particles are all parked at y=-1000
+    _prevSceneT = 0;
+    if (!_virtualMode) controls.update();
+    renderer.render(scene, camera);
+    if (!_virtualMode) requestAnimationFrame(tick);
+    return;
+  }
+
+  // Main phase — sceneT counts up from 0 once intro is over, wrapped to CYCLE_DURATION.
+  const mainT_raw = sceneT_raw - INTRO_DURATION;
+  const sceneT = mainT_raw % CYCLE_DURATION;
 
   // Cycle wrap → reset every animation to t=0 so animals freeze again at frame 0,
   // and re-arm the one-shot particle flash for the next loop.
@@ -499,14 +642,15 @@ function tick() {
   updateParticles(dt);
 
   if (tour.enabled) {
-    const t = (clock.getElapsedTime() - tour.t0) / tour.period;
+    // sceneT here is already the cycle-wrapped main-phase time (0..CYCLE_DURATION).
+    const t = sceneT / tour.period;
     const [px, pz] = tourPos(t);
     displayGroup.position.x = px;
     displayGroup.position.z = pz;
   }
-  controls.update();
+  if (!_virtualMode) controls.update();
   renderer.render(scene, camera);
-  requestAnimationFrame(tick);
+  if (!_virtualMode) requestAnimationFrame(tick);
 }
 tick();
 
@@ -515,8 +659,8 @@ const animalsRoot = new THREE.Group();
 animalsRoot.position.y = PEDESTAL.h; // sit on top of pedestal
 displayGroup.add(animalsRoot);
 
-// Hold the start pose (rows 0–2, cols 0–5 centered) until animals finish loading.
-displayGroup.position.set(tour.xAmp, 0, tour.zAmp);
+// Initial displayGroup position is (0,0,0); the intro/tour logic in tick()
+// overwrites this every frame, so no setup-time placement is needed.
 
 const gltfLoader = new GLTFLoader();
 
@@ -538,7 +682,9 @@ function placeAnimal(gltf, i, cellW, cellD, filename) {
   let action = null;
   if (gltf.animations && gltf.animations.length > 0) {
     mixer = new THREE.AnimationMixer(model);
+    setLinearInterp(gltf.animations[0]);
     action = mixer.clipAction(gltf.animations[0]);
+    action.timeScale = ANIM_TIME_SCALE;
     action.play();
     mixer.update(0);
   }
@@ -654,11 +800,11 @@ async function loadAnimals() {
   loadingEl.textContent = `LOADING ANIMALS 0/${total}`;
   await Promise.all(Array.from({ length: LOAD_CONCURRENCY }, worker));
   loadingEl.classList.add('hidden');
-  tour.t0 = clock.getElapsedTime();
   tour.enabled = true;
-  sceneClock.start(); // begin phase timeline (animals frozen until PHASE.freezeUntil)
-  loadBlobs(selected); // background-load the blob versions for the t=15s swap
+  if (!RECORD_MODE) sceneClock.start(); // record loop drives time virtually instead
+  blobsLoadPromise = loadBlobs(selected); // background-load (or awaited by record loop)
 }
+let blobsLoadPromise = null;
 
 // ---- Blob version loading (background, after textured animals are visible) ----
 async function loadBlobs(filenames) {
@@ -713,7 +859,9 @@ async function loadBlobs(filenames) {
 
         if (gltf.animations && gltf.animations.length > 0) {
           const bMixer = new THREE.AnimationMixer(blobModel);
+          setLinearInterp(gltf.animations[0]);
           const bAction = bMixer.clipAction(gltf.animations[0]);
+          bAction.timeScale = ANIM_TIME_SCALE;
           bAction.play();
           bMixer.update(0);
           a.blobMixer = bMixer;
@@ -727,6 +875,90 @@ async function loadBlobs(filenames) {
   await Promise.all(Array.from({ length: 4 }, worker));
 }
 
-loadAnimals();
+async function runRecording() {
+  const { Recorder, RecorderStatus } = await import('canvas-record');
+  const { AVC } = await import('media-codecs');
+
+  // Give the GPU a beat to settle after loading 90 textured + 90 blob GLBs,
+  // and verify the WebGL context is actually alive (drawingBuffer non-zero).
+  await new Promise((r) => setTimeout(r, 800));
+  const gl = renderer.getContext();
+  if (gl.isContextLost() || gl.drawingBufferWidth === 0) {
+    console.error('[record] WebGL context not usable (lost or buffer 0×0). Try a smaller RECORD_WIDTH/HEIGHT.');
+    return;
+  }
+  // Defensive: force canvas back to RECORD_WIDTH × RECORD_HEIGHT in case something
+  // (resize event, devtools, HMR) shrank it. updateStyle=false keeps CSS at viewport.
+  if (gl.drawingBufferWidth !== RECORD_WIDTH || gl.drawingBufferHeight !== RECORD_HEIGHT) {
+    console.warn(`[record] canvas was ${gl.drawingBufferWidth}x${gl.drawingBufferHeight}, forcing to ${RECORD_WIDTH}x${RECORD_HEIGHT}`);
+    renderer.setSize(RECORD_WIDTH, RECORD_HEIGHT, false);
+    camera.aspect = RECORD_WIDTH / RECORD_HEIGHT;
+    camera.updateProjectionMatrix();
+    updateBackgroundAspect();
+  }
+  console.log(`[record] context OK: drawingBuffer=${gl.drawingBufferWidth}x${gl.drawingBufferHeight}`);
+
+  const totalSeconds = INTRO_DURATION + CYCLE_DURATION;
+  const totalFrames = Math.ceil(totalSeconds * RECORD_FPS);
+  const dt = 1 / RECORD_FPS;
+
+  // Switch tick() to virtual-time mode and render frame 0 first.
+  _virtualMode = true;
+  _virtualSceneT = 0;
+  _virtualDt = 0;
+  tick();
+
+  const recorder = new Recorder(renderer.getContext(), {
+    name: `scene_teaser_${RECORD_WIDTH}x${RECORD_HEIGHT}_${RECORD_FPS}fps`,
+    duration: totalSeconds,
+    frameRate: RECORD_FPS,
+    rect: [0, 0, RECORD_WIDTH, RECORD_HEIGHT], // explicit — don't rely on gl.drawingBufferWidth at start time
+    target: 'in-browser',                       // force a normal browser download (no Save-As picker)
+    download: true,
+    encoderOptions: {
+      codec: AVC.getCodec({ profile: 'High', level: '5.2' }),
+    },
+  });
+
+  console.log(`[record] starting: ${totalFrames} frames @ ${RECORD_FPS}fps @ ${RECORD_WIDTH}x${RECORD_HEIGHT}`);
+  const t0 = performance.now();
+  await recorder.start();
+
+  for (let i = 1; i < totalFrames; i++) {
+    _virtualSceneT = i * dt;
+    _virtualDt = dt;
+    tick();
+    await recorder.step();
+    if (i % 60 === 0 || i === totalFrames - 1) {
+      const pct = ((i / totalFrames) * 100).toFixed(1);
+      const elapsed = ((performance.now() - t0) / 1000).toFixed(0);
+      console.log(`[record] ${i}/${totalFrames} (${pct}%)  sceneT=${_virtualSceneT.toFixed(2)}s  wall=${elapsed}s  status=${recorder.status}`);
+    }
+  }
+
+  // Explicit stop in case duration auto-stop didn't fire — this triggers the download.
+  if (recorder.status !== RecorderStatus.Stopped) {
+    console.log('[record] frames done; calling stop() to flush encoder + download');
+    await recorder.stop();
+  }
+  console.log(`[record] complete — final status=${recorder.status}; file should be in Downloads`);
+}
+
+(async () => {
+  if (RECORD_MODE) {
+    // Push the canvas into 4K mode and hide UI chrome before anything renders.
+    document.getElementById('hud')?.remove();
+    controls.enabled = false;
+    renderer.domElement.style.width = window.innerWidth + 'px';
+    renderer.domElement.style.height = window.innerHeight + 'px';
+  }
+  await loadAnimals();
+  if (RECORD_MODE) {
+    console.log('[record] textured loaded; waiting for blob versions…');
+    await blobsLoadPromise;
+    console.log('[record] all assets loaded; starting capture');
+    await runRecording();
+  }
+})();
 
 window.__scene = { scene, camera, controls, renderer, pedestal, displayAnchor, ambient, topSpot, fillLight, rimLight, animalsRoot, displayGroup, tour, sceneClock, PHASE, animals, CYCLE_DURATION, particles };

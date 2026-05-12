@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "canvas-record": "^5.5.1",
     "three": "^0.169.0"
   },
   "devDependencies": {
