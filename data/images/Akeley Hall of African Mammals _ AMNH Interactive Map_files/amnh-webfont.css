@@ -1,0 +1,27 @@
+/*-----------
+# AMNH SANS (VARIABLE)
+-------------*/
+@font-face {
+    font-family: 'amnh-sans';
+    src: url('/bundles/amnhbase/fonts/amnhsans/AMNHSans-Variable.woff2') format('woff2');
+    font-weight: 300 700;
+    font-style: normal italic;
+}
+
+/*-----------
+# AMNH SERIF (VARIABLE)
+-------------*/
+@font-face {
+    font-family: 'amnh-serif';
+    src: url('/bundles/amnhbase/fonts/amnhserif/AMNHSerif-Variable.woff2') format('woff2');
+    font-weight: 300 700;
+    font-style: normal italic;
+}
+
+.amnh-serif {
+    font-family: 'amnh-serif', 'Georgia', 'Times', serif;
+}
+
+.amnh-sans {
+    font-family: 'amnh-sans', 'Helvetica', 'Arial', sans-serif;
+}

@@ -1,0 +1,1158 @@
+:root {
+    --black: #000;
+    --black-75: rgba(0, 0, 0, 0.75);
+    --gray-dark: #707070;
+    --gray-light: #b3b3b3;
+    --gray-lightest: #f0f0f0;
+    --purple-dark: #16042b;
+    --blue-amnh: #004bb4;
+    --teal-amnh: #088070;
+    --white: #fff;
+    --max-width: 768px;
+    --floor-0-bg: #825aa6;
+    --floor-1-bg: #0998bc;
+    --floor-2-bg: #f2a71e;
+    --floor-3-bg: #3bae49;
+    --floor-4-bg: #e45726;
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-size: 20px;
+    line-height: 1.2;
+}
+
+* {
+    font-family: 'amnh-sans';
+}
+
+em,
+i,
+b,
+strong,
+span {
+    font-family: inherit;
+}
+
+*:focus-visible,
+*:focus {
+    box-shadow: 0 0 0 1px var(--blue-amnh);
+    outline-color: var(--black);
+    outline-width: 1px;
+    outline-style: dotted;
+    outline-offset: 3px;
+}
+
+button {
+    background: none;
+    border: none;
+    outline: none;
+    padding: 0;
+}
+
+button:hover {
+    cursor: pointer;
+}
+
+input,
+select {
+    font-size: 100%;
+}
+
+.hide {
+    display: none !important;
+}
+
+.sr-only {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.fixed-contained {
+    position: fixed;
+    left: 0;
+    right: 0;
+    margin: auto;
+    z-index: 4;
+    max-width: var(--max-width);
+}
+
+.overlay {
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    overflow-y: auto;
+    text-align: right;
+}
+
+.overlay .inner {
+    /* needed to constrain close btn within max width */
+    text-align: left;
+}
+
+.close-btn {
+    /* right aligned within modal max width */
+    position: fixed;
+    top: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    margin: auto;
+    margin-left: -45px;
+    background: var(--white) url('../icons/close__black.svg') no-repeat 50% 50%;
+    background-size: 50%;
+    box-sizing: border-box;
+    border-radius: 50%;
+    z-index: 10;
+}
+
+#toaster-modal .close-btn {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    padding: 5px 0;
+    margin-left: auto;
+    background: url('../icons/swipe-down__white.png') no-repeat 50% 5px;
+    background-size: auto 100%;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+#toaster-modal .close-btn:focus,
+#toaster-modal .close-btn:focus-visible {
+    outline: 0;
+    box-shadow: none;
+}
+
+#toaster-modal .close-btn:focus::before,
+#toaster-modal .close-btn:focus-visible::before {
+    content: '';
+    display: block;
+    position: absolute;
+    height: 32px;
+    left: 0;
+    right: 0;
+    top: 0;
+    margin: 5px;
+    box-shadow: 0 0 0 1px var(--blue-amnh);
+    outline-color: var(--white);
+    outline-width: 1px;
+    outline-style: dotted;
+    outline-offset: 3px;
+}
+
+#toaster-modal.no-image .close-btn {
+    background-image: url('../icons/swipe-down__gray.svg');
+}
+
+#toaster-modal.no-image .close-btn:focus::before,
+#toaster-modal.no-image .close-btn:focus-visible::before {
+    content: '';
+    display: block;
+    position: absolute;
+    height: 100%;
+    left: 0;
+    right: 0;
+    top: 0;
+    margin: 5px;
+    box-shadow: 0 0 0 1px var(--blue-amnh);
+    outline-color: var(--black);
+    outline-width: 1px;
+    outline-style: dotted;
+    outline-offset: 3px;
+}
+
+#toaster-modal .close-btn span {
+    display: block;
+    position: relative;
+    min-width: 70px;
+    color: white;
+    padding-top: 17px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toaster-top-gradient {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 150px;
+    display: block;
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+#toaster-modal.no-image .toaster-top-gradient,
+#toaster-modal.no-image .close-btn span {
+    display: none;
+}
+
+/* HEADER TOP NAV */
+#top-nav {
+    top: 0;
+    height: 56px;
+    width: 100%;
+    background: var(--black);
+}
+
+#top-nav *:focus-visible,
+#top-nav *:focus {
+    outline-color: var(--white);
+}
+
+#top-nav > .inner {
+    height: 100%;
+    padding: 0 10px 0 20px;
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#top-nav .nav-btn:focus {
+    transition: none !important;
+}
+
+#amnh-header-logo {
+    display: flex;
+    margin-right: auto;
+}
+
+#amnh-header-logo span {
+    background-size: 100%;
+    background-repeat: no-repeat;
+    display: block;
+}
+
+#amnh-header-logo .logo-text {
+    background-image: url('../icons/amnh-logo-white.svg?2023');
+    height: 26px;
+    width: 120px;
+    margin-left: 3px;
+}
+
+.nav-btn {
+    width: 38px;
+    height: 38px;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 18px;
+    color: var(--white);
+}
+
+#lang-btn {
+    width: auto;
+    text-align: left;
+    padding-right: 33px;
+    background-position: calc(100% - 10px) 50%;
+    text-transform: uppercase;
+    font-size: 16px;
+}
+
+#info-btn {
+    background-image: url('../icons/info__white.png');
+}
+
+#search-btn {
+    background-image: url('../icons/search__white.svg');
+}
+
+#lang-btn {
+    background-image: url('../icons/globe__white.svg');
+}
+
+/*  VISITOR INFO MODAL */
+#info-modal {
+    background: var(--white);
+}
+
+#info-modal .inner {
+    padding: 30px;
+}
+
+#info-title {
+    margin: 25px 0;
+    padding: 0;
+    font-size: 36px;
+    line-height: 50px;
+    font-weight: normal;
+}
+
+#info-body {
+    font-size: 16px;
+    line-height: 26px;
+    font-weight: 300;
+}
+
+#info-body h2 {
+    font-family: 'amnh-serif';
+    font-size: 20px;
+    line-height: 36px;
+    font-weight: normal;
+    margin: 0;
+    padding: 0;
+}
+
+#info-body a {
+    color: var(--teal-amnh);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+/* SEARCH MODAL */
+#input-wrapper {
+    width: 100%;
+    background: var(--white);
+}
+
+#input-wrapper > .inner {
+    padding: 50px 30px 10px;
+    background-color: var(--white);
+    margin-bottom: 10px;
+}
+
+.modal-alpha {
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    background: var(--black-75);
+}
+
+#search-input {
+    width: 100%;
+    font-size: 22px;
+    line-height: 55px;
+    padding: 0 40px 0 0;
+    background: var(--white) url('../icons/search__black.svg') no-repeat right center;
+    background-size: 30px;
+    border: none;
+    border-bottom: solid 2px var(--gray-light);
+    border-radius: 0;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+#results-counter {
+    margin: 27px 0 0;
+    font-size: 14px;
+    line-height: 16px;
+}
+
+#results-wrapper {
+    margin-top: 160px;
+    background: var(--white);
+    position: relative;
+    z-index: 2;
+}
+
+#results-wrapper .results-list {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 20px 0 0 0;
+    padding: 0;
+}
+
+/* required to make top/bottom focus state styles fully visible on first item */
+#results-wrapper .results-list li:first-of-type button {
+    margin-top: 14px;
+}
+
+/* required to make top/bottom focus state styles fully visible on last item */
+#results-wrapper .results-list li:last-of-type button {
+    margin-bottom: 4px;
+}
+
+.results-list li {
+    width: 100%;
+    display: flex;
+}
+
+.result-item {
+    color: var(--black);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 15px 30px;
+    margin: 0;
+    border-bottom: solid 1px #eee;
+    text-align: left;
+    flex-basis: 100%;
+    list-style-type: none;
+}
+
+/* make sure GTM triggers are on the button itself */
+.result-item * {
+    pointer-events: none;
+}
+
+.result-item img {
+    width: 60px;
+    min-width: 60px;
+    height: auto;
+    padding-right: 10px;
+}
+
+.result-item .text {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.result-item .type {
+    text-transform: uppercase;
+    color: var(--teal-amnh);
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 500;
+    padding: 2px 0;
+    width: 100%;
+}
+
+.result-item .title {
+    font-weight: normal;
+    font-size: 16px;
+    line-height: 22px;
+    white-space: nowrap;
+}
+
+/* LANGUAGE MODAL */
+#lang-modal {
+    display: flex;
+}
+
+#lang-modal .inner {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    max-width: 300px;
+    margin: auto;
+    max-height: 280px;
+    align-items: center;
+    text-align: center;
+    background: var(--white);
+    padding: 40px 20px;
+    position: relative;
+    z-index: 2;
+}
+
+#lang-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+.lang-btn {
+    display: block;
+    height: 40px;
+    width: calc(100% - 50px);
+    padding: 0 25px;
+    line-height: 40px;
+    font-size: 18px;
+    background-color: var(--blue-amnh);
+    color: var(--white);
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+.lang-btn.active,
+.lang-btn:hover {
+    background-image: url('../icons/globe__white.svg');
+    background-size: auto 25px;
+    background-position: 10px 50%;
+    background-repeat: no-repeat;
+}
+
+#lang-modal .close-btn {
+    position: absolute;
+    right: 5px;
+}
+
+/* FILTERS */
+#filters {
+    top: 56px;
+    z-index: 4;
+}
+
+#filters > .inner {
+    padding: 15px 0 0 15px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    position: fixed;
+    margin: auto;
+    width: 292px;
+}
+
+#filters .filter {
+    background-color: var(--white);
+    color: var(--black);
+    width: 94px;
+    height: 35px;
+    line-height: 35px;
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 3px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+#filters .filter:focus {
+    text-decoration: underline;
+    text-decoration-thickness: 0.1rem;
+}
+
+#filters .filter.active {
+    background-color: var(--blue-amnh);
+    color: var(--white);
+}
+
+#meridian-map {
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    z-index: 3;
+}
+
+/* (hack) hide search box in floors */
+/* (hack) hide aruba logo */
+#meridian-map .meridian--private--1l51shd-overlay-search-bar,
+#meridian-map .meridian--private--qs9yr6-watermark {
+    display: none;
+}
+
+#meridian-map .meridian--private--1e0a3vd-overlay-building-name {
+    padding: 15px;
+}
+
+#meridian-map .meridian--private--1d8ni48-overlay-floor-button:focus,
+#meridian-map .meridian--private--1d8ni48-overlay-floor-button:focus-visible,
+#meridian-map .meridian--private--1olkxvb-details-overlay-close:focus,
+#meridian-map .meridian--private--1olkxvb-details-overlay-close:focus-visible,
+#meridian-map
+    .meridian--private--etnthz-overlay-floor-button-overlay-floor-button-curent-floor:focus,
+#meridian-map
+    .meridian--private--etnthz-overlay-floor-button-overlay-floor-button-curent-floor:focus-visible,
+#meridian-map .meridian--private--ylcs0n-control:focus,
+#meridian-map .meridian--private--ylcs0n-control:focus-visible,
+#meridian-map .meridian-zoom-button:focus,
+#meridian-map .meridian-zoom-button:focus-visible {
+    box-shadow: 0 0 0 1px var(--blue-amnh);
+    outline-color: var(--black);
+    outline-width: 1px;
+    outline-style: dotted;
+    outline-offset: 3px;
+}
+
+/* required to make top/bottom focus state styles visible */
+#meridian-map .meridian--private--1mnr25o-floors-list button:first-of-type {
+    margin-top: 4px;
+}
+
+#meridian-map .meridian--private--1mnr25o-floors-list button:last-of-type {
+    margin-bottom: 4px;
+}
+
+#meridian-map
+    .meridian--private--1d8ni48-overlay-floor-button
+    #meridian-map
+    .meridian--private--1d8ni48-overlay-floor-button:hover {
+    background: none;
+    outline: 0px;
+    box-shadow: white 0px 0px 0px 1px inset, rgb(41, 125, 194) 0px 0px 0px 2px inset;
+}
+
+#meridian-map .meridian--private--14n6j4z-overlay-floor-button-overlay-floor-button-curent-floor,
+#meridian-map .meridian--private--etnthz-overlay-floor-button-overlay-floor-button-curent-floor {
+    font-weight: bold !important;
+}
+
+#meridian-map .meridian-floor-control,
+#meridian-map .meridian-zoom-button {
+    width: 35px;
+    height: 35px;
+}
+
+#meridian-map .meridian-zoom-controls svg,
+#meridian-map .meridian-floor-control svg {
+    fill: var(--black);
+}
+
+#meridian-map .meridian-floor-label {
+    background: var(--white);
+    color: var(--gray-dark);
+    font-size: 12px;
+    height: 20px;
+    line-height: 20px;
+    padding: 0 10px;
+    text-shadow: none;
+}
+
+#meridian-map .meridian-map-background {
+    background: var(--gray-lightest);
+}
+
+/* MERIDIAN PLACEMARKS */
+/* only cms placemarks are clickable */
+.meridian-placemark .meridian-placemark-icon {
+    pointer-events: none;
+    background-color: var(--blue-amnh);
+    background-size: 70%;
+    border-radius: 50%;
+}
+
+#meridian-map.floor-0 .meridian-placemark .meridian-placemark-icon {
+    background-color: var(--floor-0-bg);
+}
+
+#meridian-map.floor-1 .meridian-placemark .meridian-placemark-icon {
+    background-color: var(--floor-1-bg);
+}
+
+#meridian-map.floor-2 .meridian-placemark .meridian-placemark-icon {
+    background-color: var(--floor-2-bg);
+}
+
+#meridian-map.floor-3 .meridian-placemark .meridian-placemark-icon {
+    background-color: var(--floor-3-bg);
+}
+
+#meridian-map.floor-4 .meridian-placemark .meridian-placemark-icon {
+    background-color: var(--floor-4-bg);
+}
+
+/* make sure GTM triggers are on the button itself */
+.meridian-placemark .meridian-placemark-icon * {
+    pointer-events: none;
+}
+
+/* use custom icons for static placemarks */
+.meridian-placemark-type-elevator {
+    background-image: url('../icons/elevator.png') !important;
+}
+
+.meridian-placemark-type-stairs {
+    background-image: url('../icons/stairs.png') !important;
+}
+
+.meridian-placemark-type-escalator {
+    background-image: url('../icons/escalator.png') !important;
+}
+
+.meridian-placemark .custom-placemark,
+.meridian-placemark .custom-placemark-photo,
+.meridian-placemark .custom-placemark-icon {
+    pointer-events: all;
+    border: solid 1px var(--white);
+    box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.3);
+    transform: scale(1.2);
+    transition: all 0.1s linear;
+}
+
+.meridian-placemark .meridian-placemark-icon.custom-placemark.type-hall,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-icon.type-amenity {
+    transform: scale(1.2) rotate(-45deg);
+    border-radius: 60% 60% 60% 0;
+    margin-bottom: 10px;
+    margin-top: -30px;
+}
+
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-special_event,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-exhibit {
+    transform: scale(2) rotate(-45deg);
+    border-radius: 60% 60% 60% 0;
+    margin-bottom: 20px;
+    margin-top: -40px;
+}
+
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-special_event span,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-exhibit span,
+.meridian-placemark .meridian-placemark-icon.type-amenity span {
+    display: block;
+    position: relative;
+    width: 28px;
+    height: 28px;
+    left: -4px;
+    top: -2px;
+    background-size: cover;
+    transform: rotate(45deg);
+}
+
+.meridian-placemark
+    .meridian-placemark-type-water_fountain.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 28px;
+    height: 32px;
+    left: -2px;
+    top: -4px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-changing_room.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 28px;
+    height: 28px;
+    left: -3px;
+    top: -3px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-restroom_men_ada.meridian-placemark-icon.type-amenity
+    span,
+.meridian-placemark
+    .meridian-placemark-type-restroom_men.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.6);
+    width: 13px;
+    height: 31px;
+    left: 4px;
+    top: -4px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-restroom_women_ada.meridian-placemark-icon.type-amenity
+    span,
+.meridian-placemark
+    .meridian-placemark-type-restroom_women.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.6);
+    width: 15px;
+    height: 31px;
+    left: 3px;
+    top: -4px;
+}
+
+.meridian-placemark .meridian-placemark-type-restroom_ada.meridian-placemark-icon.type-amenity span,
+.meridian-placemark
+    .meridian-placemark-type-restroom_family.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 29px;
+    height: 25px;
+    left: -4px;
+    top: -2px;
+}
+
+.meridian-placemark .meridian-placemark-type-shop.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 30px;
+    height: 31px;
+    left: -3px;
+    top: -5px;
+}
+
+.meridian-placemark .meridian-placemark-type-tours.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 28px;
+    height: 32px;
+    left: -3px;
+    top: -5px;
+}
+
+.meridian-placemark .meridian-placemark-type-parking.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 31px;
+    height: 27px;
+    left: -4px;
+    top: -3px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='photo-booth']
+    span,
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='photo-booth2']
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 16px;
+    height: 35px;
+    left: 3px;
+    top: -6px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='souvenir-penny-machine-3']
+    span,
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='souvenir-penny-machine-2']
+    span,
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='souvenir-penny-machine-1']
+    span,
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='souvenir-penny-machine-4']
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 33px;
+    height: 18px;
+    left: -6px;
+    top: 0px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='cafe-on-1']
+    span,
+.meridian-placemark
+    .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity[data-alias='food-court']
+    span,
+.meridian-placemark .meridian-placemark-type-cafe.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 22px;
+    height: 30px;
+    left: 0px;
+    top: -4px;
+}
+
+.meridian-placemark .meridian-placemark-type-exit.meridian-placemark-icon.type-amenity span,
+.meridian-placemark .meridian-placemark-type-generic.meridian-placemark-icon.type-amenity span,
+.meridian-placemark
+    .meridian-placemark-type-device_charging.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.4);
+    width: 26px;
+    height: 39px;
+    left: -2px;
+    top: -8px;
+}
+
+.meridian-placemark .meridian-placemark-type-lost_found.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.4);
+    width: 30px;
+    height: 35px;
+    left: -4px;
+    top: -6px;
+}
+
+.meridian-placemark
+    .meridian-placemark-type-nursing_station.meridian-placemark-icon.type-amenity
+    span {
+    transform: rotate(45deg) scale(0.5);
+    width: 24px;
+    height: 31px;
+    left: -1px;
+    top: -4px;
+}
+
+.meridian-placemark .meridian-placemark-type-atm.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 28px;
+    height: 28px;
+    left: -3px;
+    top: -3px;
+}
+
+.meridian-placemark .meridian-placemark-type-desk.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    height: 22px;
+    width: 30px;
+    left: -4px;
+    top: 0px;
+}
+
+.meridian-placemark .meridian-placemark-type-information.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 25px;
+    height: 27px;
+    left: -2px;
+    top: -3px;
+}
+
+.meridian-placemark .meridian-placemark-type-coat_check.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 30px;
+    height: 20px;
+    left: -3px;
+    top: 0px;
+}
+
+.meridian-placemark .meridian-placemark-type-lounge.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+    width: 34px;
+    height: 20px;
+    left: -6px;
+    top: 0px;
+}
+
+.meridian-placemark .meridian-placemark-type-security.meridian-placemark-icon.type-amenity span {
+    transform: rotate(45deg) scale(0.5);
+}
+
+.meridian-placemark .custom-placemark,
+.meridian-placemark .meridian-placemark-icon.type-amenity {
+    background-image: none;
+}
+
+.meridian-placemark .custom-placemark::before {
+    background-image: url('../icons/hall.png');
+    content: '';
+    position: absolute;
+    transform: rotate(45deg) scale(0.35);
+    width: 44px;
+    height: 44px;
+    left: -11px;
+    top: -11px;
+}
+
+.meridian-placemark .custom-placemark-photo {
+    background-image: none;
+    background-size: cover;
+    transform: scale(2);
+}
+
+.meridian-placemark .custom-placemark-icon {
+    background-size: 43%;
+}
+
+.meridian-placemark .meridian-placemark-type-information {
+    background-size: 10%;
+}
+
+.meridian-placemark .meridian-placemark-type-cafe {
+    background-size: 35%;
+}
+
+.meridian-placemark .meridian-placemark-type-desk,
+.meridian-placemark .meridian-placemark-type-lost_found,
+.meridian-placemark .meridian-placemark-type-security,
+.meridian-placemark .meridian-placemark-type-lounge,
+.meridian-placemark .meridian-placemark-type-coat_check {
+    background-size: 56%;
+}
+
+.meridian-placemark.active {
+    z-index: 10 !important;
+}
+
+.meridian-placemark .meridian-placemark-icon:focus,
+.meridian-placemark.active .meridian-placemark-icon {
+    transform: scale(2);
+}
+
+.meridian-placemark.active .meridian-placemark-icon.custom-placemark.type-hall,
+.meridian-placemark .meridian-placemark-icon.custom-placemark.type-hall:focus,
+.meridian-placemark.active .meridian-placemark-icon.custom-placemark-icon.type-amenity,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-icon.type-amenity:focus {
+    transform: rotate(-45deg) scale(2);
+}
+
+.meridian-placemark.active .meridian-placemark-icon {
+    border: solid 1px #fc0;
+}
+
+.meridian-placemark .custom-placemark-photo:focus,
+.meridian-placemark.active .custom-placemark-photo {
+    transform: scale(3);
+}
+
+.meridian-placemark.active .meridian-placemark-icon.custom-placemark-photo.type-special_event,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-special_event:focus,
+.meridian-placemark.active .meridian-placemark-icon.custom-placemark-photo.type-exhibit,
+.meridian-placemark .meridian-placemark-icon.custom-placemark-photo.type-exhibit:focus {
+    transform: rotate(-45deg) scale(3);
+}
+
+.meridian-placemark .meridian-label {
+    font-weight: 600;
+}
+
+/* TOASTER MODAL */
+#toaster-modal {
+    background: var(--white);
+    color: var(--black);
+    bottom: 0;
+    height: 0;
+    width: 100%;
+    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    overflow: hidden;
+    max-height: 100%;
+}
+
+#toaster-modal > .inner {
+    position: relative;
+}
+
+#toaster-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 0;
+    background-size: cover;
+    background-position: 50% 25%;
+    padding-top: 50%;
+}
+
+.hall-modal #toaster-image {
+    padding-top: 40%;
+}
+
+#toaster-text {
+    padding: 53% 30px 20px;
+}
+
+.hall-modal #toaster-text {
+    padding-top: 43%;
+}
+
+.no-image #toaster-text {
+    padding-top: 30px;
+}
+
+.title,
+.status,
+.tickets,
+.description {
+    font-weight: 300;
+}
+
+.title {
+    font-size: 20px;
+    line-height: 30px;
+    margin: 0 0 10px;
+    font-weight: 400;
+}
+
+.location {
+    font-size: 14px;
+    line-height: 18px;
+    color: var(--gray-dark);
+    background: url('../icons/pin__gray.svg') no-repeat left 1px;
+    background-size: 9px;
+    padding-left: 15px;
+    margin: 10px 0 15px;
+    font-weight: 400;
+}
+
+.subtype,
+.status,
+.tickets,
+.description,
+.showtimes,
+.exhibit-title {
+    font-size: 14px;
+    line-height: 22px;
+}
+
+.status {
+    margin: 15px 0 10px;
+}
+
+.subtype,
+.showtimes,
+.exhibit-title {
+    font-weight: 500;
+}
+
+.subtype {
+    text-transform: uppercase;
+    color: var(--teal-amnh);
+}
+
+.tickets {
+    margin: 10px 0;
+}
+
+.description {
+    margin: 10px 0;
+}
+
+.showtimes {
+    margin: 15px 0;
+    padding: 15px 0;
+    border-top: solid 1px var(--white);
+}
+
+.exhibits-title {
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: normal;
+    margin: 15px 0;
+}
+
+.exhibit {
+    position: relative;
+    display: block;
+    color: var(--white);
+    margin-right: 8px;
+    padding: 0;
+    background-size: cover;
+    /* required to make top/bottom focus state styles visible */
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+/* make sure GTM triggers are on the button itself */
+.exhibit * {
+    pointer-events: none;
+}
+
+/* force buttons to be squares */
+.exhibit:after {
+    content: '';
+    display: block;
+    padding-bottom: 100%;
+}
+
+.exhibit-title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8), transparent);
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    flex-direction: row;
+}
+
+.exhibit-title .inner {
+    display: block;
+    margin: 0 20px 15px;
+    text-align: left;
+}
+
+@media only screen and (min-width: 620px) {
+    #toaster-image {
+        padding-top: 42%;
+    }
+
+    #toaster-text {
+        padding-top: 45%;
+    }
+
+    .hall-modal #toaster-image {
+        padding-top: 32%;
+    }
+
+    .hall-modal #toaster-text {
+        padding-top: 35%;
+    }
+}
+
+@media only screen and (max-width: 389px) {
+    .nav-btn {
+        width: 32px;
+    }
+
+    #lang-btn {
+        padding-right: 30px;
+        background-position: calc(100% - 7px) 50%;
+    }
+}
